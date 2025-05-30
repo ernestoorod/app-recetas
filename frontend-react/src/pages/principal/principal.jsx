@@ -1,18 +1,21 @@
 import React, { useState, useEffect } from "react";
 
-const SPOONACULAR_API_KEY = "48eee489876e48e5937f1d5662e4ce30";
+// Clave de API para Spoonacular (debería mantenerse segura en entornos de producción)
+const SPOONACULAR_API_KEY = "e5dac8fb2a41471a9c4be83c6f49cdfd";
 
 export default function RecetasApp() {
-  const [ingredientesEs, setIngredientesEs] = useState([]);
-  const [ingredientesEn, setIngredientesEn] = useState([]);
-  const [nuevoIngrediente, setNuevoIngrediente] = useState("");
-  const [recetas, setRecetas] = useState([]);
-  const [cargando, setCargando] = useState(false);
-  const [sinResultados, setSinResultados] = useState(false);
-  const [pagina, setPagina] = useState(0);
-  const [hayMas, setHayMas] = useState(true);
-  const [modoOscuro, setModoOscuro] = useState(false);
+  // Estados para gestionar ingredientes, recetas, paginación y otros controles UI
+  const [ingredientesEs, setIngredientesEs] = useState([]); // Ingredientes en español
+  const [ingredientesEn, setIngredientesEn] = useState([]); // Ingredientes traducidos al inglés
+  const [nuevoIngrediente, setNuevoIngrediente] = useState(""); // Input del nuevo ingrediente
+  const [recetas, setRecetas] = useState([]); // Lista de recetas obtenidas
+  const [cargando, setCargando] = useState(false); // Indicador de carga
+  const [sinResultados, setSinResultados] = useState(false); // Bandera si no hay resultados
+  const [pagina, setPagina] = useState(0); // Página actual para paginación
+  const [hayMas, setHayMas] = useState(true); // Indica si hay más recetas para cargar
+  const [modoOscuro, setModoOscuro] = useState(false); // Control del modo oscuro
 
+  // Función para traducir texto usando una API externa
   const traducir = async (texto, from = "es", to = "en") => {
     try {
       const res = await fetch(
@@ -26,16 +29,19 @@ export default function RecetasApp() {
     }
   };
 
+  // Añadir ingrediente con traducción y actualización de estados
   const agregarIngrediente = async () => {
     const esp = nuevoIngrediente.trim();
     if (esp && !ingredientesEs.includes(esp)) {
       const ingIngles = await traducir(esp, "es", "en");
+      console.log("Ingrediente traducido:", esp, "->", ingIngles);
       setIngredientesEs([...ingredientesEs, esp]);
       setIngredientesEn([...ingredientesEn, ingIngles.toLowerCase()]);
       setNuevoIngrediente("");
     }
   };
 
+  // Quitar un ingrediente por su versión en español
   const quitarIngrediente = (esp) => {
     const index = ingredientesEs.indexOf(esp);
     if (index !== -1) {
@@ -48,6 +54,7 @@ export default function RecetasApp() {
     }
   };
 
+  // Permitir agregar ingrediente presionando Enter
   const handleKeyDown = (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -55,12 +62,14 @@ export default function RecetasApp() {
     }
   };
 
+  // Reinicia la búsqueda de recetas cuando cambian los ingredientes
   useEffect(() => {
     setRecetas([]);
     setPagina(0);
     setHayMas(true);
   }, [ingredientesEn]);
 
+  // Detecta el scroll para paginación infinita
   useEffect(() => {
     const handleScroll = () => {
       if (
@@ -77,6 +86,7 @@ export default function RecetasApp() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, [cargando, hayMas]);
 
+  // Carga recetas desde la API de Spoonacular según ingredientes y página actual
   useEffect(() => {
     if (ingredientesEn.length === 0) return;
 
@@ -89,13 +99,24 @@ export default function RecetasApp() {
         const res = await fetch(
           `https://api.spoonacular.com/recipes/findByIngredients?ingredients=${query}&number=10&offset=${offset}&ranking=1&ignorePantry=true&apiKey=${SPOONACULAR_API_KEY}`
         );
+
         const data = await res.json();
 
+        // Verifica si la respuesta es válida
+        if (!Array.isArray(data)) {
+          console.error("Respuesta inesperada de la API:", data);
+          setSinResultados(true);
+          setCargando(false);
+          return;
+        }
+
+        // Filtra recetas que usen todos los ingredientes proporcionados
         const filtradas = data.filter((receta) => {
           const usados = receta.usedIngredients.map((i) => i.name.toLowerCase());
           return ingredientesEn.every((ing) => usados.includes(ing));
         });
 
+        // Traduce títulos de recetas al español
         const traducidas = await Promise.all(
           filtradas.map(async (receta) => {
             const tituloEs = await traducir(receta.title, "en", "es");
@@ -103,6 +124,7 @@ export default function RecetasApp() {
           })
         );
 
+        // Actualiza el estado de recetas y control de paginación
         if (filtradas.length === 0) setHayMas(false);
         setRecetas((prev) => [...prev, ...traducidas]);
         setSinResultados(pagina === 0 && traducidas.length === 0);
@@ -126,6 +148,7 @@ export default function RecetasApp() {
       }`}
       style={{ fontFamily: "'Poppins', sans-serif" }}
     >
+      {/* Encabezado de la aplicación con modo claro/oscuro */}
       <header className="text-center mb-16 animate-fade-in relative max-w-7xl mx-auto">
         <h1 className={`text-6xl font-extrabold drop-shadow-lg tracking-tight ${modoOscuro ? "text-white" : "text-[#5D5C31]"}`}>
           Recetas
@@ -145,6 +168,7 @@ export default function RecetasApp() {
         </button>
       </header>
 
+      {/* Sección de entrada de ingredientes */}
       <section className={`flex flex-col items-center justify-center gap-6 mb-16 ${ingredientesEs.length === 0 ? "mt-20" : ""}`}>
         {ingredientesEs.length === 0 && (
           <p className="text-lg text-[#8C2B32] font-medium animate-fade-in">
@@ -169,6 +193,7 @@ export default function RecetasApp() {
         </div>
       </section>
 
+      {/* Lista de ingredientes seleccionados */}
       {ingredientesEs.length > 0 && (
         <section className={`rounded-3xl px-12 py-10 mb-20 shadow-xl transition-all max-w-5xl mx-auto animate-fade-in-up border ${
           modoOscuro
@@ -203,45 +228,45 @@ export default function RecetasApp() {
         </section>
       )}
 
+      {/* Sección de recetas mostradas */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10 animate-fade-in-up max-w-7xl mx-auto">
         {recetas.map((receta) => {
-            const recetaUrl = `https://spoonacular.com/recipes/${receta.title.replace(/ /g, "-").toLowerCase()}-${receta.id}`;
-            return (
+          const recetaUrl = `https://spoonacular.com/recipes/${receta.title.replace(/ /g, "-").toLowerCase()}-${receta.id}`;
+          return (
             <article
-                key={receta.id}
-                onClick={() => window.open(recetaUrl, "_blank")}
-                className={`cursor-pointer relative rounded-3xl overflow-hidden shadow-xl border transition-all duration-300 group ${
+              key={receta.id}
+              onClick={() => window.open(recetaUrl, "_blank")}
+              className={`cursor-pointer relative rounded-3xl overflow-hidden shadow-xl border transition-all duration-300 group ${
                 modoOscuro
-                    ? "bg-white/10 border-white/10 hover:shadow-3xl"
-                    : "bg-white/30 backdrop-blur-xl border-[#5D5C31]/30 hover:shadow-3xl"
-                } hover:scale-[1.05] hover:-translate-y-1`}
+                  ? "bg-white/10 border-white/10 hover:shadow-3xl"
+                  : "bg-white/30 backdrop-blur-xl border-[#5D5C31]/30 hover:shadow-3xl"
+              } hover:scale-[1.05] hover:-translate-y-1`}
             >
-                <img
+              <img
                 src={receta.image}
                 alt={receta.title}
                 className="w-full h-48 object-cover rounded-t-3xl"
-                />
-                <div className="p-6 text-center">
+              />
+              <div className="p-6 text-center">
                 <h3 className={`text-2xl font-bold transition group-hover:underline ${modoOscuro ? "text-white" : "text-[#5D5C31]"}`}>
-                    {receta.tituloTraducido}
+                  {receta.tituloTraducido}
                 </h3>
                 <a
-                    href={recetaUrl}
-                    className="inline-block mt-4 font-semibold text-lg text-[#8C2B32] transition-transform hover:-translate-y-[2px] hover:text-[#a0353d]"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
+                  href={recetaUrl}
+                  className="inline-block mt-4 font-semibold text-lg text-[#8C2B32] transition-transform hover:-translate-y-[2px] hover:text-[#a0353d]"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                    Ver receta
+                  Ver receta
                 </a>
-                </div>
+              </div>
             </article>
-            );
+          );
         })}
-        </section>
+      </section>
 
-
-
+      {/* Mensajes informativos dependiendo del estado de carga o resultados */}
       {cargando && (
         <p className="text-center text-2xl text-[#8C2B32] font-bold mt-10 animate-fade-in">
           Cargando recetas...
@@ -260,6 +285,7 @@ export default function RecetasApp() {
         </p>
       )}
 
+      {/* Animaciones personalizadas */}
       <style jsx>{`
         @keyframes bounce-slow {
           0%, 100% {
